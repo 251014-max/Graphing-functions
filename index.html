@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MathVerse Workspace - لوحة المدير العام والتحكم</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --admin-color: #d97706;
+            --bg-dark: #090d16;
+            --panel-dark: #111724;
+            --border-dark: rgba(255, 255, 255, 0.08);
+            --text-dark: #f8fafc;
+            
+            --bg-light: #f8fafc;
+            --panel-light: #ffffff;
+            --border-light: rgba(0, 0, 0, 0.08);
+            --text-light: #0f172a;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', 'Cairo', system-ui, sans-serif; }
+
+        body { height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        body.dark-mode { background-color: var(--bg-dark); color: var(--text-dark); }
+        body.dark-mode .header { background: rgba(17, 23, 36, 0.9); border-bottom: 1px solid var(--border-dark); }
+        body.dark-mode .sidebar { background: var(--panel-dark); border-inline-end: 1px solid var(--border-dark); }
+        body.dark-mode input, body.dark-mode select, body.dark-mode .panel-card, body.dark-mode .key-btn { 
+            background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-dark); color: var(--text-dark); 
+        }
+        body.dark-mode .tab-btn.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+        body.dark-mode .tab-btn.admin-tab.active { color: var(--admin-color); border-bottom: 2px solid var(--admin-color); }
+
+        body.light-mode { background-color: var(--bg-light); color: var(--text-light); }
+        body.light-mode .header { background: rgba(255, 255, 255, 0.9); border-bottom: 1px solid var(--border-light); }
+        body.light-mode .sidebar { background: var(--panel-light); border-inline-end: 1px solid var(--border-light); }
+        body.light-mode input, body.light-mode select, body.light-mode .panel-card, body.light-mode .key-btn { 
+            background: #e2e8f0; border: 1px solid var(--border-light); color: var(--text-light); 
+        }
+        body.light-mode .tab-btn.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+
+        body.rtl { direction: rtl; }
+        body.ltr { direction: ltr; }
+
+        /* شاشة تسجيل الدخول المحدثة */
+        .auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(9, 13, 22, 0.96); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
+        .auth-box { width: 420px; padding: 35px; border-radius: 16px; background: #111724; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 14px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+
+        .header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; backdrop-filter: blur(10px); z-index: 10; }
+        .logo-area { display: flex; align-items: center; gap: 12px; }
+        .logo-icon { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #10b981); display: flex; align-items: center; justify-content: center; font-size: 20px; color: white; font-weight: bold; }
+        .logo-icon.admin-mode { background: linear-gradient(135deg, #d97706, #dc2626) !important; }
+        .logo-title { font-weight: 700; font-size: 16px; background: linear-gradient(90deg, #6366f1, #10b981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .logo-title.admin-mode { background: linear-gradient(90deg, #d97706, #f59e0b) !important; -webkit-background-clip: text; }
+        
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 380px; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .tabs-header { display: flex; border-bottom: 1px solid rgba(128, 128, 128, 0.15); }
+        .tab-btn { flex: 1; padding: 14px 4px; font-size: 12px; font-weight: 600; background: transparent; border: none; cursor: pointer; text-align: center; color: #64748b; }
+        
+        .tab-content { flex: 1; overflow-y: auto; padding: 16px; display: none; }
+        .tab-content.active { display: flex; flex-direction: column; gap: 14px; }
+
+        .input-group { display: flex; gap: 6px; }
+        input, select { flex: 1; padding: 10px 12px; border-radius: 8px; font-size: 14px; outline: none; }
+        
+        .btn { padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(128, 128, 128, 0.3); background: transparent; color: inherit; cursor: pointer; font-size: 13px; font-weight: 500; }
+        .btn-accent { background: var(--primary); color: white; border: none; }
+        .btn-accent.admin-btn { background: var(--admin-color) !important; }
+        .btn-accent:hover { opacity: 0.9; }
+
+        .graph-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+        .color-dot { width: 14px; height: 14px; border-radius: 4px; }
+        
+        .workspace-keyboard { display: flex; flex-direction: column; gap: 10px; margin-top: 5px; }
+        .grid-symbols { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+        .symbol-section-title { font-size: 11px; font-weight: 700; color: var(--primary); margin-top: 4px; border-bottom: 1px dashed rgba(128,128,128,0.2); padding-bottom: 2px; }
+        
+        .key-btn { padding: 8px 2px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: bold; text-align: center; border: 1px solid transparent; }
+        .key-btn:hover { background: var(--primary) !important; color: white !important; }
+
+        .panel-card { padding: 12px; border-radius: 8px; }
+        .card-title { font-size: 11px; color: #64748b; font-weight: bold; margin-bottom: 6px; text-transform: uppercase; }
+        
+        .canvas-area { flex: 1; position: relative; overflow: hidden; }
+        canvas { display: block; width: 100%; height: 100%; }
+        .coords-indicator { position: absolute; bottom: 16px; right: 16px; padding: 8px 14px; border-radius: 8px; background: rgba(0,0,0,0.8); color: #cbd5e1; font-size: 12px; backdrop-filter: blur(6px); pointer-events: none; font-family: monospace; }
+        
+        .user-badge { font-size: 11px; color: #6366f1; font-weight: bold; background: rgba(99, 102, 241, 0.1); padding: 4px 8px; border-radius: 6px; cursor: pointer; }
+        .user-badge.admin-badge { color: #f59e0b; background: rgba(217, 119, 6, 0.15); border: 1px solid rgba(217, 119, 6, 0.3); }
+    </style>
+</head>
+<body class="dark-mode ltr" id="bodyNode">
+
+    <!-- ── واجهة تسجيل الدخول وحظر التصفح بدون حساب ── -->
+    <div class="auth-overlay" id="authOverlay">
+        <div class="auth-box">
+            <h2 style="color: white; font-size: 20px;" id="authTitle">MathVerse Authentication</h2>
+            <p style="font-size: 12px; color: #64748b;">سجل دخولك للرسم البياني</p>
+            
+            <input type="text" id="authName" placeholder="الاسم الكامل / Full Name (للمستخدمين الجدد)">
+            <input type="email" id="authEmail" placeholder="البريد الإلكتروني / Email Address">
+            
+            <!-- حقل كلمة المرور الاختياري للمدير العام فقط -->
+            <input type="password" id="authPassword" placeholder="كلمة مرور " style="border-color: rgba(217, 119, 6, 0.3);">
+            
+            <button class="btn btn-accent" id="loginBtn" onclick="handleUserLogin()">دخول مساحة العمل / Access System</button>
+        </div>
+    </div>
+
+    <!-- ── رأس الصفحة ── -->
+    <div class="header">
+        <div class="logo-area">
+            <div class="logo-icon" id="mainLogoIcon">📐</div>
+            <div>
+                <div class="logo-title" id="txtTitle">MathVerse Engine</div>
+                <div style="display: flex; gap: 6px; align-items: center; margin-top: 2px;">
+                    <span class="user-badge" id="userDisplay" onclick="logout()">Sign Out</span>
+                </div>
+            </div>
+        </div>
+        <div class="nav-controls" style="display:flex; gap:8px;">
+            <button class="btn" onclick="toggleLanguage()">عربي / EN</button>
+            <button class="btn" onclick="toggleDarkMode()">☀️ / 🌙</button>
+            <button class="btn btn-accent" onclick="exportPNG()" id="txtExport">Export Image</button>
+        </div>
+    </div>
+
+    <!-- ── الحاوية الرئيسية ── -->
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="tabs-header">
+                <button class="tab-btn active" onclick="switchTab('graph')" id="tabGraph">Workspace</button>
+                <button class="tab-btn" onclick="switchTab('db')" id="tabDB">Saved History</button>
+                <!-- تبويب الإدارة المخفي الافتراضي ويظهر فقط للمدير العام -->
+                <button class="tab-btn admin-tab" id="tabAdmin" onclick="switchTab('admin')" style="display: none; color: #f59e0b; font-weight: bold;">[📁 Control Panel]</button>
+            </div>
+
+            <!-- 1. تبويب مساحة العمل والكتابة -->
+            <div id="contentGraph" class="tab-content active">
+                <div class="input-group">
+                    <input type="text" id="graphInput" placeholder="Type or click symbols...">
+                    <button class="btn btn-accent" id="addGraphBtn" onclick="addGraph()">+</button>
+                </div>
+                
+                <div id="graphsList" style="display:flex; flex-direction:column; gap:6px; max-height:110px; overflow-y:auto;"></div>
+
+                <div class="workspace-keyboard">
+                    <div class="symbol-section-title" id="titleFuncs">Functions & Operators</div>
+                    <div class="grid-symbols" id="symMathFuncs"></div>
+                    <div class="symbol-section-title" id="titleCalculus">Calculus & Math Keys</div>
+                    <div class="grid-symbols" id="symCalculus"></div>
+                </div>
+
+                <div class="panel-card" style="margin-top:auto; padding: 10px;">
+                    <div class="input-group">
+                        <button class="btn" style="flex:1; padding:6px;" onclick="zoom(1.4)">Zoom -</button>
+                        <button class="btn" style="flex:1; padding:6px;" onclick="zoom(0.6)">Zoom +</button>
+                        <button class="btn" style="flex:1.2; padding:6px;" onclick="resetView()" id="lblReset">Reset View</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. تبويب السجلات العادية للمستخدم المفتوح -->
+            <div id="contentDb" class="tab-content">
+                <div class="input-group">
+                    <input type="text" id="dbSaveName" placeholder="Graph Save Title...">
+                    <button class="btn btn-accent" id="saveRecordBtn" onclick="saveGraphToUserHistory()">Save to Profile</button>
+                </div>
+                <hr style="opacity:0.1; margin:12px 0;">
+                <div class="card-title" id="lblSavedItems">Your Stored Sessions:</div>
+                <div id="dbRecordsList" style="display:flex; flex-direction:column; gap:6px;"></div>
+            </div>
+
+            <!-- 3. لوحة تحكم المدير العام الحصرية لإدارة قاعدة البيانات الكاملة -->
+            <div id="contentAdmin" class="tab-content">
+                <div style="background: rgba(217, 119, 6, 0.1); border: 1px solid rgba(217, 119, 6, 0.2); padding: 10px; border-radius: 8px; font-size: 12px; color: #f59e0b; margin-bottom: 8px;">
+                    <strong>لوحة المدير العام / Root Administrator</strong><br>
+                    يمكنك تصفح ومراقبة وحذف أي سجل مرسوم لأي مستخدم مسجل في السيرفر المحلي.
+                </div>
+                <div class="card-title" style="color: #f59e0b;">سجلات ورسومات كافة المستخدمين:</div>
+                <div id="adminGlobalRecordsList" style="display:flex; flex-direction:column; gap:6px; overflow-y:auto; max-height:400px;"></div>
+            </div>
+        </div>
+
+        <div class="canvas-area">
+            <canvas id="graphCanvas"></canvas>
+            <div class="coords-indicator" id="coordsIndicator">X: [-10, 10] | Y: [-6, 6]</div>
+        </div>
+    </div>
+
+    <script>
+        const WORKSPACE_SYMBOLS = {
+            mathFuncs: ["sin(x)", "cos(x)", "tan(x)", "sqrt(x)", "abs(x)", "sinh(x)", "cosh(x)", "tanh(x)", "log(x)", "ln(x)", "^2", "^3", "^", "(", ")"],
+            calculus: ["∫", "∬", "∂", "∇", "∑", "∞", "π", "e", "±", "×", "÷", "≠", "≤", "≥"]
+        };
+
+        // معلومات المدير العام الثابتة المحددة من قبلك
+        const ADMIN_CREDENTIALS = {
+            email: "sj4380004@gmail.com",
+            password: "Eng.Jehad0595194601"
+        };
+
+        let db = null;
+        let currentUser = null; 
+        let isAdminMode = false;
+        const DB_NAME = "MathVerseUserSystemDB";
+        const STORE_NAME = "user_sessions_history";
+
+        let currentLang = "en";
+        let isDark = true;
+        let view = { xMin: -10, xMax: 10, yMin: -6, yMax: 6 };
+        let graphs = [{ id: "g_1", expr: "sin(x)", color: "#6366f1", visible: true }];
+        const COLORS = ["#6366f1", "#ec4899", "#10b981", "#f59e0b", "#3b82f6", "#ef4444"];
+
+        const TRANSLATIONS = {
+            en: {
+                title: "MathVerse Intelligent Core", placeholder: "Type or click symbols...",
+                functions: "Workspace f(x)", database: "Saved History", reset: "Reset View",
+                save: "Save to Profile", savedItems: "Your Stored Sessions:", export: "Export Image",
+                tFuncs: "Functions & Operators", tCalc: "Calculus & Math Keys"
+            },
+            ar: {
+                title: "محرك الرياضيات والرسوم البيانية", placeholder: "اكتب المعادلة أو انقر الرموز...",
+                functions: "مساحة الكتابة", database: "السجلات المحفوظة", reset: "إعادة ضبط المحاور",
+                save: "حفظ في حسابي", savedItems: "جلسات الرسم الخاصة بك:", export: "تصدير كصورة",
+                tFuncs: "الاقترانات والعمليات", tCalc: "التفاضل والرموز الحسابية"
+            }
+        };
+
+        function initDatabase() {
+            const request = indexedDB.open(DB_NAME, 1);
+            request.onupgradeneeded = (e) => {
+                e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+            };
+            request.onsuccess = (e) => {
+                db = e.target.result;
+                checkSession();
+            };
+        }
+
+        // معالجة تسجيل الدخول والتحقق من صلاحيات المدير العام
+        function handleUserLogin() {
+            const nameInput = document.getElementById("authName").value.trim();
+            const emailInput = document.getElementById("authEmail").value.trim().toLowerCase();
+            const passwordInput = document.getElementById("authPassword").value;
+
+            if (!emailInput) {
+                alert("يرجى إدخال البريد الإلكتروني على الأقل للدخول.");
+                return;
+            }
+
+            // التحقق مما إذا كان المدخل هو المدير العام الحصري
+            if (emailInput === ADMIN_CREDENTIALS.email) {
+                if (passwordInput !== ADMIN_CREDENTIALS.password) {
+                    alert("⚠️ كلمة مرور المدير العام غير صحيحة!");
+                    return;
+                }
+                // تهيئة حساب المدير العام
+                currentUser = { name: "المهندس جهاد (المدير العام)", email: ADMIN_CREDENTIALS.email, role: "admin" };
+                isAdminMode = true;
+            } else {
+                // مستخدم عادي
+                if (!nameInput) {
+                    alert("يرجى كتابة اسمك الكامل لإنشاء سجل خاص بك.");
+                    return;
+                }
+                currentUser = { name: nameInput, email: emailInput, role: "user" };
+                isAdminMode = false;
+            }
+
+            localStorage.setItem("mathverse_logged_session", JSON.stringify(currentUser));
+            applySessionUI();
+        }
+
+        function checkSession() {
+            const saved = localStorage.getItem("mathverse_logged_session");
+            if (saved) {
+                currentUser = JSON.parse(saved);
+                isAdminMode = (currentUser.role === "admin");
+                applySessionUI();
+            }
+        }
+
+        function applySessionUI() {
+            if (!currentUser) return;
+            document.getElementById("authOverlay").style.display = "none";
+            
+            const badge = document.getElementById("userDisplay");
+            if (isAdminMode) {
+                badge.innerText = `👑 المدير العام: ${currentUser.name} [خروج]`;
+                badge.className = "user-badge admin-badge";
+                document.getElementById("tabAdmin").style.display = "block"; // إظهار لوحة التحكم للمدير العام
+                document.getElementById("mainLogoIcon").innerText = "👑";
+                document.getElementById("mainLogoIcon").className = "logo-icon admin-mode";
+                document.getElementById("txtTitle").className = "logo-title admin-mode";
+                document.getElementById("addGraphBtn").className = "btn btn-accent admin-btn";
+                document.getElementById("saveRecordBtn").className = "btn btn-accent admin-btn";
+                loadAdminGlobalHistory();
+            } else {
+                badge.innerText = `👤 المستخدِم: ${currentUser.name} [خروج]`;
+                badge.className = "user-badge";
+                document.getElementById("tabAdmin").style.display = "none";
+            }
+            loadUserHistoryFromDB();
+        }
+
+        function logout() {
+            localStorage.removeItem("mathverse_logged_session");
+            location.reload();
+        }
+
+        function saveGraphToUserHistory() {
+            if (!db || !currentUser) return;
+            const titleEl = document.getElementById("dbSaveName");
+            const title = titleEl.value.trim();
+            if (!title) return;
+
+            const transaction = db.transaction([STORE_NAME], "readwrite");
+            const store = transaction.objectStore(STORE_NAME);
+
+            const record = {
+                userEmail: currentUser.email,
+                userName: currentUser.name,
+                title: title,
+                graphData: graphs,
+                timestamp: new Date().toLocaleString()
+            };
+
+            store.add(record);
+            transaction.oncomplete = () => {
+                titleEl.value = "";
+                loadUserHistoryFromDB();
+                if (isAdminMode) loadAdminGlobalHistory();
+            };
+        }
+
+        // عرض سجلات الحساب المفتوح حالياً
+        function loadUserHistoryFromDB() {
+            if (!db || !currentUser) return;
+            const list = document.getElementById("dbRecordsList");
+            list.innerHTML = "";
+
+            db.transaction([STORE_NAME], "readonly").objectStore(STORE_NAME).getAll().onsuccess = (e) => {
+                const userRecords = e.target.result.filter(r => r.userEmail === currentUser.email);
+                if (userRecords.length === 0) {
+                    list.innerHTML = `<div style="font-size:12px; opacity:0.5; text-align:center; padding:10px;">لا يوجد سجلات محفوظة لحسابك حالياً.</div>`;
+                    return;
+                }
+                userRecords.forEach(rec => {
+                    list.innerHTML += `
+                        <div class="panel-card" style="display:flex; justify-content:space-between; align-items:center; background:rgba(128,128,128,0.04); padding:10px; margin-bottom:4px;">
+                            <div>
+                                <strong style="color:var(--primary); font-size:13px;">${rec.title}</strong>
+                                <div style="font-size:10px; opacity:0.5;">${rec.timestamp}</div>
+                            </div>
+                            <div style="display:flex; gap:4px;">
+                                <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="restoreSession('${encodeURIComponent(JSON.stringify(rec.graphData))}')">Load</button>
+                                <button class="btn" style="padding:4px 8px; font-size:11px; color:#ef4444;" onclick="deleteSession(${rec.id}, 'user')">✕</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            };
+        }
+
+        // لوحة المدير العام: جلب وسحب جميع مدخلات ورسومات قاعدة البيانات بالكامل
+        function loadAdminGlobalHistory() {
+            if (!db || !isAdminMode) return;
+            const adminList = document.getElementById("adminGlobalRecordsList");
+            adminList.innerHTML = "";
+
+            db.transaction([STORE_NAME], "readonly").objectStore(STORE_NAME).getAll().onsuccess = (e) => {
+                const globalRecords = e.target.result;
+                if (globalRecords.length === 0) {
+                    adminList.innerHTML = `<div style="font-size:12px; opacity:0.5; text-align:center; padding:10px; color:#64748b;">قاعدة البيانات فارغة تماماً.</div>`;
+                    return;
+                }
+                globalRecords.forEach(rec => {
+                    adminList.innerHTML += `
+                        <div class="panel-card" style="border: 1px solid rgba(217, 119, 6, 0.2); background: rgba(217, 119, 6, 0.02); display:flex; flex-direction:column; gap:6px; padding:10px; margin-bottom:6px;">
+                            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                                <div>
+                                    <span style="font-size:11px; font-weight:bold; color:#f59e0b; display:block;">المستخدم: ${rec.userName}</span>
+                                    <span style="font-size:10px; color:#64748b; display:block; font-family:monospace;">(${rec.userEmail})</span>
+                                </div>
+                                <button class="btn" style="padding:2px 6px; font-size:11px; color:#ef4444; border-color:rgba(239,68,68,0.3);" onclick="deleteSession(${rec.id}, 'admin')">حذف من السيرفر</button>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.2); padding:6px; border-radius:6px; margin-top:2px;">
+                                <span style="font-size:12px; font-weight:600; color:#cbd5e1;">عنوان الرسمة: ${rec.title}</span>
+                                <button class="btn" style="padding:2px 8px; font-size:11px; background:rgba(255,255,255,0.05);" onclick="restoreSession('${encodeURIComponent(JSON.stringify(rec.graphData))}')">عرض التابع</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            };
+        }
+
+        function deleteSession(id, origin) {
+            db.transaction([STORE_NAME], "readwrite").objectStore(STORE_NAME).delete(id).onsuccess = () => {
+                loadUserHistoryFromDB();
+                if (isAdminMode) loadAdminGlobalHistory();
+            };
+        }
+
+        function restoreSession(encodedData) {
+            graphs = JSON.parse(decodeURIComponent(encodedData));
+            renderGraphsList();
+            draw();
+            switchTab('graph');
+        }
+
+        // ── بناء واجهة أزرار الرموز المدمجة ──
+        function initKeyboard() {
+            Object.entries(WORKSPACE_SYMBOLS).forEach(([category, symbols]) => {
+                const target = document.getElementById("sym" + category.charAt(0).toUpperCase() + category.slice(1));
+                target.innerHTML = "";
+                symbols.forEach(sym => {
+                    target.innerHTML += `<button class="key-btn" onclick="insertSymbol('${sym}')">${sym}</button>`;
+                });
+            });
+        }
+
+        function insertSymbol(symbol) {
+            const input = document.getElementById("graphInput");
+            const start = input.selectionStart;
+            const end = input.selectionEnd;
+            input.value = input.value.substring(0, start) + symbol + input.value.substring(end, input.value.length);
+            input.focus();
+            input.selectionStart = input.selectionEnd = start + symbol.length;
+        }
+
+        function parseMathExpression(expr, x) {
+            try {
+                let clean = expr.toLowerCase().replace(/\^/g, "**")
+                    .replace(/sin/g, "Math.sin").replace(/cos/g, "Math.cos").replace(/tan/g, "Math.tan")
+                    .replace(/sqrt/g, "Math.sqrt").replace(/abs/g, "Math.abs")
+                    .replace(/sinh/g, "Math.sinh").replace(/cosh/g, "Math.cosh").replace(/tanh/g, "Math.tanh")
+                    .replace(/log/g, "Math.log10").replace(/ln/g, "Math.log").replace(/pi/g, "Math.PI").replace(/e/g, "Math.E");
+                clean = clean.replace(/(\d+)(x)/g, "$1*$2");
+                return new Function("x", `"use strict"; return (${clean});`)(x);
+            } catch { return NaN; }
+        }
+
+        // ── محرك الرسم البياني للكانفاس ──
+        const canvas = document.getElementById("graphCanvas");
+        const ctx = canvas.getContext("2d");
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            draw();
+        }
+
+        function draw() {
+            const W = canvas.width, H = canvas.height;
+            const { xMin, xMax, yMin, yMax } = view;
+            const toScreenX = x => ((x - xMin) / (xMax - xMin)) * W;
+            const toScreenY = y => H - ((y - yMin) / (yMax - yMin)) * H;
+
+            ctx.fillStyle = isDark ? "#090d16" : "#f8fafc";
+            ctx.fillRect(0, 0, W, H);
+
+            ctx.strokeStyle = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.05)";
+            for (let x = Math.ceil(xMin); x <= xMax; x++) { ctx.beginPath(); ctx.moveTo(toScreenX(x), 0); ctx.lineTo(toScreenX(x), H); ctx.stroke(); }
+            for (let y = Math.ceil(yMin); y <= yMax; y++) { ctx.beginPath(); ctx.moveTo(0, toScreenY(y)); ctx.lineTo(W, toScreenY(y)); ctx.stroke(); }
+
+            const cx = toScreenX(0), cy = toScreenY(0);
+            ctx.strokeStyle = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.25)";
+            if (cx >= 0 && cx <= W) { ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke(); }
+            if (cy >= 0 && cy <= H) { ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke(); }
+
+            graphs.forEach(g => {
+                if (!g.visible) return;
+                ctx.strokeStyle = g.color;
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                let drawing = false;
+                for (let px = 0; px <= W; px++) {
+                    const xVal = xMin + (px / W) * (xMax - xMin);
+                    const yVal = parseMathExpression(g.expr, xVal);
+                    if (isFinite(yVal) && Math.abs(yVal) < 1000) {
+                        const sy = toScreenY(yVal);
+                        if (!drawing) { ctx.moveTo(px, sy); drawing = true; } else ctx.lineTo(px, sy);
+                    } else drawing = false;
+                }
+                ctx.stroke();
+            });
+            document.getElementById("coordsIndicator").innerText = `X: [${view.xMin.toFixed(1)}, ${view.xMax.toFixed(1)}] | Y: [${view.yMin.toFixed(1)}, ${view.yMax.toFixed(1)}]`;
+        }
+
+        let dragging = false, lastMouse = { x: 0, y: 0, initView: {} };
+        canvas.addEventListener("mousedown", (e) => { dragging = true; lastMouse = { x: e.clientX, y: e.clientY, initView: { ...view } }; });
+        canvas.addEventListener("mousemove", (e) => {
+            if (!dragging) return;
+            const dx = (e.clientX - lastMouse.x) / canvas.width * (lastMouse.initView.xMax - lastMouse.initView.xMin);
+            const dy = (e.clientY - lastMouse.y) / canvas.height * (lastMouse.initView.yMax - lastMouse.initView.yMin);
+            view.xMin = lastMouse.initView.xMin - dx; view.xMax = lastMouse.initView.xMax - dx;
+            view.yMin = lastMouse.initView.yMin + dy; view.yMax = lastMouse.initView.yMax + dy;
+            draw();
+        });
+        window.addEventListener("mouseup", () => dragging = false);
+
+        function zoom(v) {
+            const sx = (view.xMax - view.xMin) * (v - 1) / 2; const sy = (view.yMax - view.yMin) * (v - 1) / 2;
+            view.xMin -= sx; view.xMax += sx; view.yMin -= sy; view.yMax += sy; draw();
+        }
+        function resetView() { view = { xMin: -10, xMax: 10, yMin: -6, yMax: 6 }; draw(); }
+
+        function addGraph() {
+            const input = document.getElementById("graphInput");
+            const val = input.value.trim(); if(!val) return;
+            graphs.push({ id: "id_" + Date.now(), expr: val, color: COLORS[graphs.length % COLORS.length], visible: true });
+            input.value = ""; renderGraphsList(); draw();
+        }
+
+        function removeGraph(id) { graphs = graphs.filter(g => g.id !== id); renderGraphsList(); draw(); }
+
+        function renderGraphsList() {
+            const c = document.getElementById("graphsList"); c.innerHTML = "";
+            graphs.forEach(g => {
+                c.innerHTML += `
+                    <div class="graph-item" style="background:rgba(128,128,128,0.03)">
+                        <div class="color-dot" style="background:${g.color}"></div>
+                        <div style="flex:1; font-family:monospace;">${g.expr}</div>
+                        <span style="color:#ef4444; cursor:pointer;" onclick="removeGraph('${g.id}')">✕</span>
+                    </div>
+                `;
+            });
+        }
+
+        function switchTab(id) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            
+            const btnMap = { graph: 'tabGraph', db: 'tabDB', admin: 'tabAdmin' };
+            if (document.getElementById(btnMap[id])) document.getElementById(btnMap[id]).classList.add('active');
+            
+            document.getElementById('content' + id.charAt(0).toUpperCase() + id.slice(1)).classList.add('active');
+            if(id === 'db') loadUserHistoryFromDB();
+            if(id === 'admin') loadAdminGlobalHistory();
+        }
+
+        function toggleDarkMode() { isDark = !isDark; document.getElementById("bodyNode").className = `${isDark?'dark-mode':'light-mode'} ${currentLang==='ar'?'rtl':'ltr'}`; draw(); }
+
+        function toggleLanguage() {
+            currentLang = currentLang === "en" ? "ar" : "en";
+            document.getElementById("bodyNode").className = `${isDark?'dark-mode':'light-mode'} ${currentLang==='ar'?'rtl':'ltr'}`;
+            const t = TRANSLATIONS[currentLang];
+            document.getElementById("graphInput").placeholder = t.placeholder;
+            document.getElementById("tabGraph").innerText = t.functions;
+            document.getElementById("tabDB").innerText = t.database;
+            document.getElementById("lblReset").innerText = t.reset;
+            document.getElementById("txtExport").innerText = t.export;
+            document.getElementById("titleFuncs").innerText = t.tFuncs;
+            document.getElementById("titleCalculus").innerText = t.tCalc;
+        }
+
+        function exportPNG() { const a = document.createElement("a"); a.download = "math-export.png"; a.href = canvas.toDataURL(); a.click(); }
+
+        window.addEventListener("resize", resizeCanvas);
+        window.onload = () => {
+            initDatabase();
+            initKeyboard();
+            renderGraphsList();
+            resizeCanvas();
+        };
+    </script>
+</body>
+</html>
