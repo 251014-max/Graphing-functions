@@ -200,7 +200,7 @@
         // استبدل هذه القيم بقيم مشروعك من إعدادات Supabase
         const SUPABASE_URL = 'YOUR_SUPABASE_URL';
         const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         const WORKSPACE_SYMBOLS = {
             mathFuncs: ["sin(x)", "cos(x)", "tan(x)", "sqrt(x)", "abs(x)", "sinh(x)", "cosh(x)", "tanh(x)", "log(x)", "ln(x)", "^2", "^3", "^", "(", ")"],
@@ -232,7 +232,7 @@
 
         // --- Auth Functions ---
         async function checkSession() {
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
                 currentUser = session.user;
                 await updateUIForUser();
@@ -248,12 +248,12 @@
             try {
                 let result;
                 if (type === 'signup') {
-                    result = await supabase.auth.signUp({
+                    result = await supabaseClient.auth.signUp({
                         email, password,
                         options: { data: { full_name: fullName } }
                     });
                 } else {
-                    result = await supabase.auth.signInWithPassword({ email, password });
+                    result = await supabaseClient.auth.signInWithPassword({ email, password });
                 }
 
                 if (result.error) throw result.error;
@@ -269,7 +269,7 @@
 
         async function updateUIForUser() {
             // التحقق من حالة الأدمن من جدول profiles
-            const { data: profile } = await supabase
+            const { data: profile } = await supabaseClient
                 .from('profiles')
                 .select('is_admin, full_name')
                 .eq('id', currentUser.id)
@@ -288,14 +288,14 @@
         }
 
         async function logout() {
-            await supabase.auth.signOut();
+            await supabaseClient.auth.signOut();
             location.reload();
         }
 
         // --- Database Functions ---
         async function saveGraphToSupabase() {
             const title = document.getElementById("dbSaveName").value.trim() || "Untitled Graph";
-            const { error } = await supabase
+            const { error } = await supabaseClient
                 .from('user_graphs')
                 .insert([{ 
                     user_id: currentUser.id, 
@@ -311,7 +311,7 @@
         }
 
         async function loadUserHistory() {
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('user_graphs')
                 .select('*')
                 .order('created_at', { ascending: false });
@@ -322,7 +322,7 @@
 
         async function loadAdminGlobalHistory() {
             if (!isAdminMode) return;
-            const { data, error } = await supabase
+            const { data, error } = await supabaseClient
                 .from('user_graphs')
                 .select('*, profiles(full_name)')
                 .order('created_at', { ascending: false });
@@ -353,7 +353,7 @@
         }
 
         async function restoreGraph(id) {
-            const { data, error } = await supabase.from('user_graphs').select('graph_data').eq('id', id).single();
+            const { data, error } = await supabaseClient.from('user_graphs').select('graph_data').eq('id', id).single();
             if (data) {
                 graphs = data.graph_data;
                 renderGraphsList();
@@ -365,7 +365,7 @@
         async function deleteRecord(event, id, listId) {
             event.stopPropagation();
             if (!confirm("Are you sure?")) return;
-            await supabase.from('user_graphs').delete().eq('id', id);
+            await supabaseClient.from(\'user_graphs\').delete().eq(\'id\', id);
             if (listId === "dbRecordsList") loadUserHistory();
             else loadAdminGlobalHistory();
         }
@@ -512,6 +512,19 @@
 
         window.addEventListener("resize", resizeCanvas);
         window.onload = () => {
+            supabaseClient.auth.onAuthStateChange((event, session) => {
+                if (session) {
+                    currentUser = session.user;
+                    updateUIForUser();
+                    document.getElementById("authOverlay").style.display = "none";
+                } else {
+                    currentUser = null;
+                    document.getElementById("authOverlay").style.display = "flex";
+                    document.getElementById("userDisplay").innerText = "Sign Out";
+                    document.getElementById("tabAdmin").style.display = "none";
+                    isAdminMode = false;
+                }
+            });
             checkSession();
             initKeyboard();
             renderGraphsList();
