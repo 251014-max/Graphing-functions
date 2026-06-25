@@ -52,6 +52,12 @@
         /* شاشة تسجيل الدخول المحدثة */
         .auth-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(9, 13, 22, 0.96); z-index: 100; display: flex; align-items: center; justify-content: center; backdrop-filter: blur(8px); }
         .auth-box { width: 420px; padding: 35px; border-radius: 16px; background: #111724; border: 1px solid rgba(255,255,255,0.1); display: flex; flex-direction: column; gap: 14px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); }
+        .auth-box input { width: 100%; }
+        .auth-box input:disabled, .auth-box button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .auth-error { font-size: 12px; color: #ef4444; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 8px; display: none; text-align: right; }
+        .auth-info { font-size: 12px; color: #10b981; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; padding: 8px; display: none; text-align: right; }
+        .spinner { width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff; border-radius: 50%; display: inline-block; vertical-align: middle; margin-inline-end: 6px; animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         .header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; backdrop-filter: blur(10px); z-index: 10; }
         .logo-area { display: flex; align-items: center; gap: 12px; }
@@ -76,6 +82,7 @@
         .btn-accent { background: var(--primary); color: white; border: none; }
         .btn-accent.admin-btn { background: var(--admin-color) !important; }
         .btn-accent:hover { opacity: 0.9; }
+        .btn:disabled, .btn-accent:disabled { opacity: 0.55; cursor: not-allowed; }
 
         .graph-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; font-size: 13px; cursor: pointer; }
         .color-dot { width: 14px; height: 14px; border-radius: 4px; }
@@ -105,13 +112,16 @@
         <div class="auth-box">
             <h2 style="color: white; font-size: 20px;" id="authTitle">MathVerse Authentication</h2>
             <p style="font-size: 12px; color: #64748b;">سجل دخولك للرسم البياني</p>
-            
-            <input type="text" id="authName" placeholder="الاسم الكامل / Full Name">
-            <input type="email" id="authEmail" placeholder="البريد الإلكتروني / Email Address">
-            <input type="password" id="authPassword" placeholder="كلمة المرور / Password">
+
+            <div class="auth-error" id="authError"></div>
+            <div class="auth-info" id="authInfo"></div>
+
+            <input type="text" id="authName" placeholder="الاسم الكامل / Full Name" autocomplete="name">
+            <input type="email" id="authEmail" placeholder="البريد الإلكتروني / Email Address" autocomplete="email">
+            <input type="password" id="authPassword" placeholder="كلمة المرور / Password" autocomplete="current-password">
             
             <button class="btn btn-accent" id="loginBtn" onclick="handleAuth('login')">تسجيل دخول / Login</button>
-            <button class="btn" onclick="handleAuth('signup')" style="font-size: 11px; color: #64748b;">ليس لديك حساب؟ سجل الآن / Sign Up</button>
+            <button class="btn" id="signupBtn" onclick="handleAuth('signup')" style="font-size: 11px; color: #64748b;">ليس لديك حساب؟ سجل الآن / Sign Up</button>
         </div>
     </div>
 
@@ -198,9 +208,16 @@
     <script>
         // --- Supabase Configuration ---
         // استبدل هذه القيم بقيم مشروعك من إعدادات Supabase
+        // (Settings → API في لوحة تحكم Supabase الخاصة بمشروعك)
         const SUPABASE_URL = 'YOUR_SUPABASE_URL';
         const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-        const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        let supabaseClient = null;
+        const isSupabaseConfigured = SUPABASE_URL && SUPABASE_URL.startsWith('http') && SUPABASE_ANON_KEY && SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY';
+
+        if (isSupabaseConfigured) {
+            supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
 
         const WORKSPACE_SYMBOLS = {
             mathFuncs: ["sin(x)", "cos(x)", "tan(x)", "sqrt(x)", "abs(x)", "sinh(x)", "cosh(x)", "tanh(x)", "log(x)", "ln(x)", "^2", "^3", "^", "(", ")"],
@@ -230,21 +247,82 @@
             }
         };
 
+        // --- Auth UI helpers ---
+        function showAuthError(message) {
+            const el = document.getElementById("authError");
+            el.textContent = message;
+            el.style.display = "block";
+            document.getElementById("authInfo").style.display = "none";
+        }
+
+        function showAuthInfo(message) {
+            const el = document.getElementById("authInfo");
+            el.textContent = message;
+            el.style.display = "block";
+            document.getElementById("authError").style.display = "none";
+        }
+
+        function clearAuthMessages() {
+            document.getElementById("authError").style.display = "none";
+            document.getElementById("authInfo").style.display = "none";
+        }
+
+        function setAuthLoading(isLoading) {
+            const loginBtn = document.getElementById("loginBtn");
+            const signupBtn = document.getElementById("signupBtn");
+            const inputs = ["authName", "authEmail", "authPassword"].map(id => document.getElementById(id));
+            loginBtn.disabled = isLoading;
+            signupBtn.disabled = isLoading;
+            inputs.forEach(i => i.disabled = isLoading);
+            loginBtn.innerHTML = isLoading ? `<span class="spinner"></span> جاري تسجيل الدخول...` : "تسجيل دخول / Login";
+        }
+
         // --- Auth Functions ---
         async function checkSession() {
-            const { data: { session } } = await supabaseClient.auth.getSession();
-            if (session) {
-                currentUser = session.user;
-                await updateUIForUser();
-                document.getElementById("authOverlay").style.display = "none";
+            if (!isSupabaseConfigured) {
+                showAuthError("لم يتم ضبط الاتصال بقاعدة البيانات (Supabase). يرجى تعديل SUPABASE_URL و SUPABASE_ANON_KEY في الكود.");
+                return;
+            }
+            try {
+                const { data: { session }, error } = await supabaseClient.auth.getSession();
+                if (error) throw error;
+                if (session) {
+                    currentUser = session.user;
+                    await updateUIForUser();
+                    document.getElementById("authOverlay").style.display = "none";
+                }
+            } catch (err) {
+                showAuthError("تعذر الاتصال بالخادم: " + err.message);
             }
         }
 
         async function handleAuth(type) {
-            const email = document.getElementById("authEmail").value;
-            const password = document.getElementById("authPassword").value;
-            const fullName = document.getElementById("authName").value;
+            clearAuthMessages();
 
+            if (!isSupabaseConfigured) {
+                showAuthError("لم يتم ضبط الاتصال بقاعدة البيانات (Supabase). يرجى تعديل SUPABASE_URL و SUPABASE_ANON_KEY في الكود.");
+                return;
+            }
+
+            const email = document.getElementById("authEmail").value.trim();
+            const password = document.getElementById("authPassword").value;
+            const fullName = document.getElementById("authName").value.trim();
+
+            // تحقق أساسي من المدخلات قبل إرسال الطلب
+            if (!email || !password) {
+                showAuthError("يرجى إدخال البريد الإلكتروني وكلمة المرور.");
+                return;
+            }
+            if (type === 'signup' && !fullName) {
+                showAuthError("يرجى إدخال الاسم الكامل للتسجيل.");
+                return;
+            }
+            if (password.length < 6) {
+                showAuthError("يجب أن تتكون كلمة المرور من 6 أحرف على الأقل.");
+                return;
+            }
+
+            setAuthLoading(true);
             try {
                 let result;
                 if (type === 'signup') {
@@ -257,43 +335,88 @@
                 }
 
                 if (result.error) throw result.error;
-                
+
+                // حالة: تم التسجيل لكن يتطلب تأكيد البريد الإلكتروني (لا يوجد session بعد)
+                if (type === 'signup' && !result.data.session) {
+                    showAuthInfo("تم إنشاء الحساب! يرجى مراجعة بريدك الإلكتروني لتأكيد التسجيل قبل تسجيل الدخول.");
+                    return;
+                }
+
+                if (!result.data.session) {
+                    showAuthError("تعذر إنشاء الجلسة. يرجى المحاولة مرة أخرى.");
+                    return;
+                }
+
                 currentUser = result.data.user;
                 await updateUIForUser();
                 document.getElementById("authOverlay").style.display = "none";
-                alert(type === 'signup' ? "تم التسجيل بنجاح!" : "تم دخولك بنجاح!");
             } catch (error) {
-                alert("خطأ: " + error.message);
+                showAuthError(translateAuthError(error.message));
+            } finally {
+                setAuthLoading(false);
             }
         }
 
+        function translateAuthError(message) {
+            const map = {
+                "Invalid login credentials": "البريد الإلكتروني أو كلمة المرور غير صحيحة.",
+                "User already registered": "هذا البريد الإلكتروني مسجل مسبقاً، يرجى تسجيل الدخول.",
+                "Email not confirmed": "يرجى تأكيد بريدك الإلكتروني أولاً قبل تسجيل الدخول."
+            };
+            return map[message] || message;
+        }
+
+        // السماح بالضغط على Enter لتسجيل الدخول
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("authPassword").addEventListener("keydown", e => {
+                if (e.key === "Enter") handleAuth('login');
+            });
+        });
+
         async function updateUIForUser() {
-            // التحقق من حالة الأدمن من جدول profiles
-            const { data: profile } = await supabaseClient
-                .from('profiles')
-                .select('is_admin, full_name')
-                .eq('id', currentUser.id)
-                .single();
+            try {
+                // التحقق من حالة الأدمن من جدول profiles
+                const { data: profile, error } = await supabaseClient
+                    .from('profiles')
+                    .select('is_admin, full_name')
+                    .eq('id', currentUser.id)
+                    .single();
 
-            const name = profile?.full_name || currentUser.email;
-            isAdminMode = profile?.is_admin || false;
+                if (error && error.code !== 'PGRST116') {
+                    console.warn("تعذر تحميل بيانات الملف الشخصي:", error.message);
+                }
 
-            document.getElementById("userDisplay").innerText = `Sign Out (${name})`;
-            
-            if (isAdminMode) {
-                document.getElementById("tabAdmin").style.display = "block";
-                document.getElementById("mainLogoIcon").classList.add("admin-mode");
-                document.getElementById("txtTitle").classList.add("admin-mode");
+                const name = profile?.full_name || currentUser.email;
+                isAdminMode = profile?.is_admin || false;
+
+                document.getElementById("userDisplay").innerText = `Sign Out (${name})`;
+
+                if (isAdminMode) {
+                    document.getElementById("tabAdmin").style.display = "block";
+                    document.getElementById("mainLogoIcon").classList.add("admin-mode");
+                    document.getElementById("txtTitle").classList.add("admin-mode");
+                    document.getElementById("userDisplay").classList.add("admin-badge");
+                } else {
+                    document.getElementById("tabAdmin").style.display = "none";
+                    document.getElementById("mainLogoIcon").classList.remove("admin-mode");
+                    document.getElementById("txtTitle").classList.remove("admin-mode");
+                    document.getElementById("userDisplay").classList.remove("admin-badge");
+                }
+            } catch (err) {
+                console.error("updateUIForUser error:", err);
+                document.getElementById("userDisplay").innerText = `Sign Out (${currentUser.email})`;
             }
         }
 
         async function logout() {
+            if (!isSupabaseConfigured) return;
             await supabaseClient.auth.signOut();
             location.reload();
         }
 
         // --- Database Functions ---
         async function saveGraphToSupabase() {
+            if (!currentUser) { alert("يرجى تسجيل الدخول أولاً."); return; }
             const title = document.getElementById("dbSaveName").value.trim() || "Untitled Graph";
             const { error } = await supabaseClient
                 .from('user_graphs')
@@ -365,7 +488,7 @@
         async function deleteRecord(event, id, listId) {
             event.stopPropagation();
             if (!confirm("Are you sure?")) return;
-            await supabaseClient.from(\'user_graphs\').delete().eq(\'id\', id);
+            await supabaseClient.from('user_graphs').delete().eq('id', id);
             if (listId === "dbRecordsList") loadUserHistory();
             else loadAdminGlobalHistory();
         }
@@ -466,7 +589,7 @@
             input.value = ""; renderGraphsList(); draw();
         }
 
-        function removeGraph(id) { graphs = graphs.filter(g => g.id !== id); renderGraphsList(); draw(); draw(); }
+        function removeGraph(id) { graphs = graphs.filter(g => g.id !== id); renderGraphsList(); draw(); }
 
         function renderGraphsList() {
             const c = document.getElementById("graphsList"); c.innerHTML = "";
@@ -512,20 +635,24 @@
 
         window.addEventListener("resize", resizeCanvas);
         window.onload = () => {
-            supabaseClient.auth.onAuthStateChange((event, session) => {
-                if (session) {
-                    currentUser = session.user;
-                    updateUIForUser();
-                    document.getElementById("authOverlay").style.display = "none";
-                } else {
-                    currentUser = null;
-                    document.getElementById("authOverlay").style.display = "flex";
-                    document.getElementById("userDisplay").innerText = "Sign Out";
-                    document.getElementById("tabAdmin").style.display = "none";
-                    isAdminMode = false;
-                }
-            });
-            checkSession();
+            if (isSupabaseConfigured) {
+                supabaseClient.auth.onAuthStateChange((event, session) => {
+                    if (session) {
+                        currentUser = session.user;
+                        updateUIForUser();
+                        document.getElementById("authOverlay").style.display = "none";
+                    } else {
+                        currentUser = null;
+                        document.getElementById("authOverlay").style.display = "flex";
+                        document.getElementById("userDisplay").innerText = "Sign Out";
+                        document.getElementById("tabAdmin").style.display = "none";
+                        isAdminMode = false;
+                    }
+                });
+                checkSession();
+            } else {
+                showAuthError("لم يتم ضبط الاتصال بقاعدة البيانات (Supabase). يرجى تعديل SUPABASE_URL و SUPABASE_ANON_KEY في الكود.");
+            }
             initKeyboard();
             renderGraphsList();
             resizeCanvas();
