@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MathVerse Ultra - لوحة الرموز التفاعلية وقاعدة البيانات</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-hover: #4f46e5;
+            --bg-dark: #090d16;
+            --panel-dark: #111724;
+            --border-dark: rgba(255, 255, 255, 0.08);
+            --text-dark: #f8fafc;
+            
+            --bg-light: #f8fafc;
+            --panel-light: #ffffff;
+            --border-light: rgba(0, 0, 0, 0.08);
+            --text-light: #0f172a;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', 'Cairo', system-ui, sans-serif;
+        }
+
+        body {
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* أنماط الألوان والتبديل */
+        body.dark-mode { background-color: var(--bg-dark); color: var(--text-dark); }
+        body.dark-mode .header { background: rgba(17, 23, 36, 0.9); border-bottom: 1px solid var(--border-dark); }
+        body.dark-mode .sidebar { background: var(--panel-dark); border-inline-end: 1px solid var(--border-dark); }
+        body.dark-mode input, body.dark-mode select, body.dark-mode .panel-card, body.dark-mode .key-btn { 
+            background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border-dark); color: var(--text-dark); 
+        }
+        body.dark-mode .tab-btn.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+
+        body.light-mode { background-color: var(--bg-light); color: var(--text-light); }
+        body.light-mode .header { background: rgba(255, 255, 255, 0.9); border-bottom: 1px solid var(--border-light); }
+        body.light-mode .sidebar { background: var(--panel-light); border-inline-end: 1px solid var(--border-light); }
+        body.light-mode input, body.light-mode select, body.light-mode .panel-card, body.light-mode .key-btn { 
+            background: #e2e8f0; border: 1px solid var(--border-light); color: var(--text-light); 
+        }
+        body.light-mode .tab-btn.active { color: var(--primary); border-bottom: 2px solid var(--primary); }
+
+        body.rtl { direction: rtl; }
+        body.ltr { direction: ltr; }
+
+        /* الهيكل والتصميم الإنشائي */
+        .header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; backdrop-filter: blur(10px); z-index: 10; }
+        .logo-area { display: flex; align-items: center; gap: 12px; }
+        .logo-icon { width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #6366f1, #06b6d4); display: flex; align-items: center; justify-content: center; font-size: 20px; color: white; font-weight: bold; }
+        .logo-title { font-weight: 700; font-size: 18px; background: linear-gradient(90deg, #6366f1, #06b6d4); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 350px; display: flex; flex-direction: column; overflow: hidden; }
+        
+        .tabs-header { display: flex; border-bottom: 1px solid rgba(128, 128, 128, 0.15); }
+        .tab-btn { flex: 1; padding: 14px 4px; font-size: 12px; font-weight: 600; background: transparent; border: none; cursor: pointer; text-align: center; color: #64748b; }
+        
+        .tab-content { flex: 1; overflow-y: auto; padding: 16px; display: none; }
+        .tab-content.active { display: flex; flex-direction: column; gap: 16px; }
+
+        .input-group { display: flex; gap: 6px; }
+        input, select { flex: 1; padding: 10px 12px; border-radius: 8px; font-size: 14px; outline: none; }
+        
+        .btn { padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(128, 128, 128, 0.3); background: transparent; color: inherit; cursor: pointer; font-size: 13px; font-weight: 500; }
+        .btn-accent { background: var(--primary); color: white; border: none; }
+        .btn-accent:hover { background: var(--primary-hover); }
+
+        .graph-item { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 8px; font-size: 13px; cursor: pointer; }
+        .color-dot { width: 14px; height: 14px; border-radius: 4px; }
+        
+        /* لوحة المفاتيح والرموز التفاعلية */
+        .symbols-container { display: flex; flex-direction: column; gap: 12px; }
+        .grid-symbols { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+        .symbol-section-title { font-size: 12px; font-weight: 700; color: var(--primary); margin-top: 4px; border-bottom: 1px dashed rgba(128,128,128,0.2); padding-bottom: 4px; }
+        
+        .key-btn { padding: 10px 2px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: bold; text-align: center; border: 1px solid transparent; }
+        .key-btn:hover { background: var(--primary) !important; color: white !important; }
+
+        .panel-card { padding: 12px; border-radius: 8px; }
+        .card-title { font-size: 11px; color: #64748b; font-weight: bold; margin-bottom: 6px; text-transform: uppercase; }
+        .card-value { font-size: 13px; font-family: monospace; }
+
+        /* منطقة الرسم البياني الكانفاس */
+        .canvas-area { flex: 1; position: relative; overflow: hidden; }
+        canvas { display: block; width: 100%; height: 100%; }
+        .coords-indicator { position: absolute; bottom: 16px; right: 16px; padding: 8px 14px; border-radius: 8px; background: rgba(0,0,0,0.8); color: #cbd5e1; font-size: 12px; backdrop-filter: blur(6px); pointer-events: none; font-family: monospace; }
+        body.light-mode .coords-indicator { background: rgba(255,255,255,0.9); color: #0f172a; border: 1px solid rgba(0,0,0,0.1); }
+        
+        .status-db { font-size: 11px; text-align: center; color: #10b981; padding: 4px 8px; background: rgba(16, 185, 129, 0.1); border-radius: 4px; }
+    </style>
+</head>
+<body class="dark-mode ltr" id="bodyNode">
+
+    <div class="header">
+        <div class="logo-area">
+            <div class="logo-icon">∫</div>
+            <div>
+                <div class="logo-title" id="txtTitle">MathVerse Ultra</div>
+                <div class="status-db" id="dbStatus">IndexedDB Active</div>
+            </div>
+        </div>
+        <div class="nav-controls" style="display:flex; gap:8px;">
+            <button class="btn" onclick="toggleLanguage()">عربي / EN</button>
+            <button class="btn" onclick="toggleDarkMode()">☀️ / 🌙</button>
+            <button class="btn btn-accent" onclick="exportPNG()" id="txtExport">Export Image</button>
+        </div>
+    </div>
+
+    <div class="main-container">
+        
+        <div class="sidebar">
+            <div class="tabs-header">
+                <button class="tab-btn active" onclick="switchTab('graph')" id="tabGraph">Functions</button>
+                <button class="tab-btn" onclick="switchTab('symbols')" id="tabSymbols">Write Symbols</button>
+                <button class="tab-btn" onclick="switchTab('analysis')" id="tabAnalysis">Analysis</button>
+                <button class="tab-btn" onclick="switchTab('db')" id="tabDB">Database</button>
+            </div>
+
+            <div id="contentGraph" class="tab-content active">
+                <div class="input-group">
+                    <input type="text" id="graphInput" placeholder="Click 'Write Symbols' tab to inject formulas...">
+                    <button class="btn btn-accent" onclick="addGraph(null)">+</button>
+                </div>
+                
+                <div id="graphsList" style="display:flex; flex-direction:column; gap:6px; max-height:160px; overflow-y:auto;"></div>
+                
+                <div>
+                    <label class="card-title" id="lblSelectCategory">Quick Templates:</label>
+                    <select id="catalogSelect" onchange="addGraph(this.value); this.value='';">
+                        <option value="">-- Choose Function --</option>
+                        <option value="sin(x)">Sine: sin(x)</option>
+                        <option value="cosh(x)">Hyperbolic Cosine: cosh(x)</option>
+                        <option value="x^2 - 4">Polynomial: x^2 - 4</option>
+                        <option value="log(x)">Logarithmic: log(x)</option>
+                    </select>
+                </div>
+
+                <div class="panel-card">
+                    <div class="card-title" id="lblControls">Viewport</div>
+                    <div class="input-group">
+                        <button class="btn" style="flex:1" onclick="zoom(1.4)">Zoom Out</button>
+                        <button class="btn" style="flex:1" onclick="zoom(0.6)">Zoom In</button>
+                    </div>
+                    <button class="btn" style="width:100%; margin-top:6px;" onclick="resetView()" id="lblReset">Reset view</button>
+                </div>
+            </div>
+
+            <div id="contentSymbols" class="tab-content">
+                <div style="font-size:12px; opacity:0.8; margin-bottom:10px; font-weight:600; color:var(--primary);" id="lblSymbolTip">
+                    انقر على أي رمز وسيتم كتابته مباشرة في مربع الإدخال في مكان المؤشر:
+                </div>
+                
+                <div class="symbols-container">
+                    <div class="symbol-section-title">Functions & Powers (الدوال والأسس)</div>
+                    <div class="grid-symbols" id="symMathFuncs"></div>
+
+                    <div class="symbol-section-title">Calculus & System (التفاضل والتكامل والمجموعات)</div>
+                    <div class="grid-symbols" id="symCalculus"></div>
+
+                    <div class="symbol-section-title">Relations & Constants (العلاقات والثوابت)</div>
+                    <div class="grid-symbols" id="symConstants"></div>
+
+                    <div class="symbol-section-title">Greek Symbols (الرموز الإغريقية)</div>
+                    <div class="grid-symbols" id="symGreek"></div>
+                </div>
+            </div>
+
+            <div id="contentAnalysis" class="tab-content">
+                <div id="analysisDetails" style="display:flex; flex-direction:column; gap:12px;"></div>
+            </div>
+
+            <div id="contentDb" class="tab-content">
+                <div class="input-group">
+                    <input type="text" id="dbSaveName" placeholder="Save configuration name...">
+                    <button class="btn btn-accent" onclick="saveCurrentSetupToDB()" id="lblSaveBtn">Save</button>
+                </div>
+                <hr style="opacity:0.1; margin:12px 0;">
+                <div class="card-title" id="lblSavedItems">Database Profiles:</div>
+                <div id="dbRecordsList" style="display:flex; flex-direction:column; gap:6px;"></div>
+            </div>
+        </div>
+
+        <div class="canvas-area">
+            <canvas id="graphCanvas"></canvas>
+            <div class="coords-indicator" id="coordsIndicator">X: [-10, 10] | Y: [-6, 6]</div>
+        </div>
+    </div>
+
+    <script>
+        // ── قائمة الرموز الشاملة المعدة للكتابة التفاعلية المباشرة ──
+        const EXTENDED_SYMBOLS = {
+            mathFuncs: ["sin(x)", "cos(x)", "tan(x)", "sinh(x)", "cosh(x)", "tanh(x)", "sqrt(x)", "^2", "^3", "^"],
+            calculus: ["∫", "∬", "∂", "∇", "∑", "∏", "∞", "∈", "∉", "⊂", "∪", "∩", "∧", "∨", "¬"],
+            constants: ["π", "e", "≠", "≈", "≤", "≥", "±", "×", "÷", "≡", "∝", "∴", "∵", "⊕", "⊗"],
+            greek: ["α", "β", "γ", "δ", "ε", "θ", "λ", "μ", "ρ", "σ", "φ", "ψ", "ω", "Δ", "Ω"]
+        };
+
+        let db = null;
+        const DB_NAME = "MathVerseUltraDB_v2";
+        const STORE_NAME = "user_equations";
+
+        let currentLang = "en";
+        let isDark = true;
+        let view = { xMin: -10, xMax: 10, yMin: -6, yMax: 6 };
+        let graphs = [{ id: "init_1", expr: "sin(x)", color: "#6366f1", visible: true }];
+        let selectedGraphId = "init_1";
+        const COLORS = ["#6366f1", "#ec4899", "#10b981", "#f59e0b", "#3b82f6", "#ef4444", "#a855f7", "#06b6d4"];
+
+        const TRANSLATIONS = {
+            en: {
+                title: "MathVerse Ultra", placeholder: "Inject functions or click 'Write Symbols'...",
+                functions: "Functions", symbols: "Write Symbols", analysis: "Analysis", database: "Database",
+                selectCategory: "Quick Templates:", reset: "Reset viewport", save: "Save Profile",
+                savedItems: "Database Profiles:", export: "Export Image", tip: "Click any symbol to insert into input field at cursor position:"
+            },
+            ar: {
+                title: "ماث فيرس التفاعلي", placeholder: "اكتب هنا أو استخدم لوحة الرموز المجاورة...",
+                functions: "الاقترانات", symbols: "كتابة بالرموز", analysis: "التحليل الرياضي", database: "قاعدة البيانات",
+                selectCategory: "قوالب سريعة:", reset: "إعادة تعيين المحاور", save: "حفظ في القاعدة",
+                savedItems: "الملفات المحفوظة:", export: "تصدير كصورة", tip: "انقر على أي رمز وسيتم كتابته مباشرة في مربع الإدخال في مكان المؤشر:"
+            }
+        };
+
+        // ── ميزة الكتابة بالرموز التفاعلية الفورية (Caret Injection Technology) ──
+        function initSymbolsKeyboard() {
+            Object.entries(EXTENDED_SYMBOLS).forEach(([category, symbols]) => {
+                const block = document.getElementById("sym" + category.charAt(0).toUpperCase() + category.slice(1));
+                block.innerHTML = "";
+                symbols.forEach(sym => {
+                    block.innerHTML += `<button class="key-btn" onclick="injectSymbolToInput('${sym}')">${sym}</button>`;
+                });
+            });
+        }
+
+        function injectSymbolToInput(symbol) {
+            const inputField = document.getElementById("graphInput");
+            
+            // تحديد موقع مؤشر الكتابة الحالي داخل الصندوق لضمان دقة الإدخال في المنتصف
+            const startPos = inputField.selectionStart;
+            const endPos = inputField.selectionEnd;
+            const textValue = inputField.value;
+
+            // إدخال الرمز في مكان المؤشر بالضبط دون مسح النص القديم
+            inputField.value = textValue.substring(0, startPos) + symbol + textValue.substring(endPos, textValue.length);
+
+            // إعادة توجيه التركيز ومؤشر الكتابة مباشرة بعد الرمز المكتوب
+            inputField.focus();
+            inputField.selectionStart = inputField.selectionEnd = startPos + symbol.length;
+        }
+
+        // ── قاعدة البيانات الحقيقية IndexedDB ──
+        function initIndexedDB() {
+            const request = indexedDB.open(DB_NAME, 1);
+            request.onupgradeneeded = (e) => {
+                let database = e.target.result;
+                if (!database.objectStoreNames.contains(STORE_NAME)) {
+                    database.createObjectStore(STORE_NAME, { keyPath: "name" });
+                }
+            };
+            request.onsuccess = (e) => {
+                db = e.target.result;
+                document.getElementById("dbStatus").innerText = currentLang === "en" ? "DB Connected" : "قاعدة البيانات مفعلة";
+                loadProfiles();
+            };
+        }
+
+        function saveCurrentSetupToDB() {
+            if (!db) return;
+            const nameEl = document.getElementById("dbSaveName");
+            const name = nameEl.value.trim();
+            if (!name) return;
+
+            const transaction = db.transaction([STORE_NAME], "readwrite");
+            const store = transaction.objectStore(STORE_NAME);
+            store.put({ name: name, data: graphs });
+
+            transaction.oncomplete = () => {
+                nameEl.value = "";
+                loadProfiles();
+            };
+        }
+
+        function loadProfiles() {
+            if (!db) return;
+            const list = document.getElementById("dbRecordsList");
+            list.innerHTML = "";
+
+            const store = db.transaction([STORE_NAME], "readonly").objectStore(STORE_NAME);
+            store.getAll().onsuccess = (e) => {
+                const records = e.target.result;
+                if(records.length === 0) {
+                    list.innerHTML = `<div style="font-size:12px; opacity:0.5; text-align:center;">No stored records</div>`;
+                    return;
+                }
+                records.forEach(rec => {
+                    list.innerHTML += `
+                        <div class="panel-card" style="display:flex; justify-content:space-between; align-items:center; background:rgba(128,128,128,0.04);">
+                            <div><strong style="color:var(--primary); font-size:13px;">${rec.name}</strong></div>
+                            <div style="display:flex; gap:4px;">
+                                <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="applyProfile('${encodeURIComponent(JSON.stringify(rec.data))}')">Load</button>
+                                <button class="btn" style="padding:4px 8px; font-size:11px; color:#ef4444;" onclick="deleteProfile('${rec.name}')">×</button>
+                            </div>
+                        </div>
+                    `;
+                });
+            };
+        }
+
+        function applyProfile(data) {
+            graphs = JSON.parse(decodeURIComponent(data));
+            selectedGraphId = graphs[0]?.id || null;
+            renderGraphsList();
+            draw();
+        }
+
+        function deleteProfile(name) {
+            db.transaction([STORE_NAME], "readwrite").objectStore(STORE_NAME).delete(name).onsuccess = () => loadProfiles();
+        }
+
+        // ── المحرك الرياضي والمفسر ──
+        function parseMathExpression(expr, x) {
+            try {
+                let clean = expr.toLowerCase()
+                    .replace(/\^/g, "**")
+                    .replace(/sinh/g, "Math.sinh").replace(/cosh/g, "Math.cosh").replace(/tanh/g, "Math.tanh")
+                    .replace(/sin/g, "Math.sin").replace(/cos/g, "Math.cos").replace(/tan/g, "Math.tan")
+                    .replace(/sqrt/g, "Math.sqrt").replace(/log/g, "Math.log10").replace(/ln/g, "Math.log")
+                    .replace(/abs/g, "Math.abs").replace(/pi/g, "Math.PI").replace(/e/g, "Math.E");
+                
+                clean = clean.replace(/(\d+)(x)/g, "$1*$2");
+                return new Function("x", `"use strict"; return (${clean});`)(x);
+            } catch { return NaN; }
+        }
+
+        // ── محرك الرسوم البيانية الكانفاس ──
+        const canvas = document.getElementById("graphCanvas");
+        const ctx = canvas.getContext("2d");
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            draw();
+        }
+
+        function draw() {
+            const W = canvas.width, H = canvas.height;
+            const { xMin, xMax, yMin, yMax } = view;
+
+            const toScreenX = x => ((x - xMin) / (xMax - xMin)) * W;
+            const toScreenY = y => H - ((y - yMin) / (yMax - yMin)) * H;
+
+            ctx.fillStyle = isDark ? "#090d16" : "#f8fafc";
+            ctx.fillRect(0, 0, W, H);
+
+            // خطوط الشبكة الديكارتية المتقاطعة
+            ctx.strokeStyle = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.05)";
+            for (let x = Math.ceil(xMin); x <= xMax; x++) {
+                ctx.beginPath(); ctx.moveTo(toScreenX(x), 0); ctx.lineTo(toScreenX(x), H); ctx.stroke();
+            }
+            for (let y = Math.ceil(yMin); y <= yMax; y++) {
+                ctx.beginPath(); ctx.moveTo(0, toScreenY(y)); ctx.lineTo(W, toScreenY(y)); ctx.stroke();
+            }
+
+            // رسم المحاور المتعامدة الرئيسية
+            const cx = toScreenX(0), cy = toScreenY(0);
+            ctx.strokeStyle = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.3)";
+            ctx.lineWidth = 1.5;
+            if (cx >= 0 && cx <= W) { ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke(); }
+            if (cy >= 0 && cy <= H) { ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke(); }
+
+            // معالجة ورسم التوابع الرياضية
+            graphs.forEach(g => {
+                if (!g.visible) return;
+                ctx.strokeStyle = g.color;
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+
+                let isDrawing = false;
+                for (let px = 0; px <= W; px++) {
+                    const xVal = xMin + (px / W) * (xMax - xMin);
+                    const yVal = parseMathExpression(g.expr, xVal);
+
+                    if (isFinite(yVal) && Math.abs(yVal) < 1000) {
+                        const sy = toScreenY(yVal);
+                        if (!isDrawing) { ctx.moveTo(px, sy); isDrawing = true; }
+                        else ctx.lineTo(px, sy);
+                    } else { isDrawing = false; }
+                }
+                ctx.stroke();
+            });
+
+            document.getElementById("coordsIndicator").innerText = `X: [${view.xMin.toFixed(1)}, ${view.xMax.toFixed(1)}] | Y: [${view.yMin.toFixed(1)}, ${view.yMax.toFixed(1)}]`;
+        }
+
+        // ── تفاعل محاور الفأرة والسحب ──
+        let dragging = false, lastMouse = { x: 0, y: 0, initView: {} };
+        canvas.addEventListener("mousedown", (e) => {
+            dragging = true;
+            lastMouse = { x: e.clientX, y: e.clientY, initView: { ...view } };
+        });
+        canvas.addEventListener("mousemove", (e) => {
+            if (!dragging) return;
+            const dx = (e.clientX - lastMouse.x) / canvas.width * (lastMouse.initView.xMax - lastMouse.initView.xMin);
+            const dy = (e.clientY - lastMouse.y) / canvas.height * (lastMouse.initView.yMax - lastMouse.initView.yMin);
+            view.xMin = lastMouse.initView.xMin - dx; view.xMax = lastMouse.initView.xMax - dx;
+            view.yMin = lastMouse.initView.yMin + dy; view.yMax = lastMouse.initView.yMax + dy;
+            draw();
+        });
+        window.addEventListener("mouseup", () => dragging = false);
+
+        function zoom(v) {
+            const sx = (view.xMax - view.xMin) * (v - 1) / 2;
+            const sy = (view.yMax - view.yMin) * (v - 1) / 2;
+            view.xMin -= sx; view.xMax += sx; view.yMin -= sy; view.yMax += sy;
+            draw(); updateAnalysis();
+        }
+
+        function resetView() {
+            view = { xMin: -10, xMax: 10, yMin: -6, yMax: 6 };
+            draw(); updateAnalysis();
+        }
+
+        // ── إدارة القوائم وعناصر التحكم ──
+        function addGraph(customText) {
+            const input = document.getElementById("graphInput");
+            const val = customText || input.value.trim();
+            if(!val) return;
+
+            const entry = { id: "id_" + Date.now(), expr: val, color: COLORS[graphs.length % COLORS.length], visible: true };
+            graphs.push(entry);
+            selectedGraphId = entry.id;
+            if(!customText) input.value = "";
+            renderGraphsList();
+            draw();
+            updateAnalysis();
+        }
+
+        function removeGraph(id) {
+            graphs = graphs.filter(g => g.id !== id);
+            if(selectedGraphId === id) selectedGraphId = graphs[0]?.id || null;
+            renderGraphsList(); draw(); updateAnalysis();
+        }
+
+        function toggleVisibility(id) {
+            const g = graphs.find(x => x.id === id);
+            if (g) g.visible = !g.visible;
+            renderGraphsList(); draw();
+        }
+
+        function renderGraphsList() {
+            const c = document.getElementById("graphsList"); c.innerHTML = "";
+            graphs.forEach(g => {
+                c.innerHTML += `
+                    <div class="graph-item" style="background:${selectedGraphId === g.id ? g.color+'15' : 'rgba(128,128,128,0.03)'}" onclick="selectedGraphId='${g.id}'; updateAnalysis(); renderGraphsList();">
+                        <div class="color-dot" style="background:${g.color}"></div>
+                        <div style="flex:1; font-family:monospace; font-weight:600;">${g.expr}</div>
+                        <span onclick="event.stopPropagation(); toggleVisibility('${g.id}')">${g.visible ? '✓' : '👁'}</span>
+                        <span style="color:#ef4444; margin-inline-start:8px;" onclick="event.stopPropagation(); removeGraph('${g.id}')">✕</span>
+                    </div>
+                `;
+            });
+        }
+
+        function updateAnalysis() {
+            const target = document.getElementById("analysisDetails");
+            const active = graphs.find(g => g.id === selectedGraphId) || graphs[0];
+            if(!active) { target.innerHTML = "No Functions active"; return; }
+
+            let roots = [];
+            let step = (view.xMax - view.xMin) / 100;
+            let lastY = parseMathExpression(active.expr, view.xMin);
+            for(let i=1; i<=100; i++) {
+                let curX = view.xMin + i*step;
+                let curY = parseMathExpression(active.expr, curX);
+                if(lastY * curY < 0 && isFinite(lastY) && isFinite(curY)) roots.push(curX.toFixed(2));
+                lastY = curY;
+            }
+
+            target.innerHTML = `
+                <div class="panel-card" style="border-inline-start:4px solid ${active.color}">
+                    <div class="card-title">Active Equation</div>
+                    <div class="card-value" style="color:${active.color}; font-weight:700;">f(x) = ${active.expr}</div>
+                </div>
+                <div class="panel-card">
+                    <div class="card-title">Roots in Scope (الجذور المحتواة)</div>
+                    <div class="card-value">${roots.length ? roots.join(" | ") : "None Detected"}</div>
+                </div>
+            `;
+        }
+
+        function switchTab(id) {
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            const map = { graph:'tabGraph', symbols:'tabSymbols', analysis:'tabAnalysis', db:'tabDB' };
+            document.getElementById(map[id]).classList.add('active');
+            document.getElementById('content'+id.charAt(0).toUpperCase()+id.slice(1)).classList.add('active');
+            if(id === 'analysis') updateAnalysis();
+        }
+
+        function toggleDarkMode() {
+            isDark = !isDark;
+            document.getElementById("bodyNode").className = `${isDark?'dark-mode':'light-mode'} ${currentLang==='ar'?'rtl':'ltr'}`;
+            draw();
+        }
+
+        function toggleLanguage() {
+            currentLang = currentLang === "en" ? "ar" : "en";
+            document.getElementById("bodyNode").className = `${isDark?'dark-mode':'light-mode'} ${currentLang==='ar'?'rtl':'ltr'}`;
+            const t = TRANSLATIONS[currentLang];
+            document.getElementById("graphInput").placeholder = t.placeholder;
+            document.getElementById("tabGraph").innerText = t.functions;
+            document.getElementById("tabSymbols").innerText = t.symbols;
+            document.getElementById("tabAnalysis").innerText = t.analysis;
+            document.getElementById("tabDB").innerText = t.database;
+            document.getElementById("lblSelectCategory").innerText = t.selectCategory;
+            document.getElementById("lblReset").innerText = t.reset;
+            document.getElementById("lblSaveBtn").innerText = t.save;
+            document.getElementById("lblSavedItems").innerText = t.savedItems;
+            document.getElementById("txtExport").innerText = t.export;
+            document.getElementById("lblSymbolTip").innerText = t.tip;
+        }
+
+        function exportPNG() {
+            const a = document.createElement("a");
+            a.download = "math-export.png"; a.href = canvas.toDataURL(); a.click();
+        }
+
+        window.addEventListener("resize", resizeCanvas);
+        window.onload = () => {
+            initIndexedDB();
+            initSymbolsKeyboard();
+            renderGraphsList();
+            resizeCanvas();
+        };
+    </script>
+</body>
+</html>
