@@ -6,6 +6,9 @@
     <title>MathVerse Workspace - لوحة المدير العام والتحكم</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- Supabase Client Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <style>
         :root {
             --primary: #6366f1;
@@ -103,13 +106,12 @@
             <h2 style="color: white; font-size: 20px;" id="authTitle">MathVerse Authentication</h2>
             <p style="font-size: 12px; color: #64748b;">سجل دخولك للرسم البياني</p>
             
-            <input type="text" id="authName" placeholder="الاسم الكامل / Full Name (للمستخدمين الجدد)">
+            <input type="text" id="authName" placeholder="الاسم الكامل / Full Name">
             <input type="email" id="authEmail" placeholder="البريد الإلكتروني / Email Address">
+            <input type="password" id="authPassword" placeholder="كلمة المرور / Password">
             
-            <!-- حقل كلمة المرور الاختياري للمدير العام فقط -->
-            <input type="password" id="authPassword" placeholder="كلمة مرور " style="border-color: rgba(217, 119, 6, 0.3);">
-            
-            <button class="btn btn-accent" id="loginBtn" onclick="handleUserLogin()">دخول مساحة العمل / Access System</button>
+            <button class="btn btn-accent" id="loginBtn" onclick="handleAuth('login')">تسجيل دخول / Login</button>
+            <button class="btn" onclick="handleAuth('signup')" style="font-size: 11px; color: #64748b;">ليس لديك حساب؟ سجل الآن / Sign Up</button>
         </div>
     </div>
 
@@ -137,7 +139,6 @@
             <div class="tabs-header">
                 <button class="tab-btn active" onclick="switchTab('graph')" id="tabGraph">Workspace</button>
                 <button class="tab-btn" onclick="switchTab('db')" id="tabDB">Saved History</button>
-                <!-- تبويب الإدارة المخفي الافتراضي ويظهر فقط للمدير العام -->
                 <button class="tab-btn admin-tab" id="tabAdmin" onclick="switchTab('admin')" style="display: none; color: #f59e0b; font-weight: bold;">[📁 Control Panel]</button>
             </div>
 
@@ -170,7 +171,7 @@
             <div id="contentDb" class="tab-content">
                 <div class="input-group">
                     <input type="text" id="dbSaveName" placeholder="Graph Save Title...">
-                    <button class="btn btn-accent" id="saveRecordBtn" onclick="saveGraphToUserHistory()">Save to Profile</button>
+                    <button class="btn btn-accent" id="saveRecordBtn" onclick="saveGraphToSupabase()">Save to Profile</button>
                 </div>
                 <hr style="opacity:0.1; margin:12px 0;">
                 <div class="card-title" id="lblSavedItems">Your Stored Sessions:</div>
@@ -181,7 +182,7 @@
             <div id="contentAdmin" class="tab-content">
                 <div style="background: rgba(217, 119, 6, 0.1); border: 1px solid rgba(217, 119, 6, 0.2); padding: 10px; border-radius: 8px; font-size: 12px; color: #f59e0b; margin-bottom: 8px;">
                     <strong>لوحة المدير العام / Root Administrator</strong><br>
-                    يمكنك تصفح ومراقبة وحذف أي سجل مرسوم لأي مستخدم مسجل في السيرفر المحلي.
+                    يمكنك تصفح ومراقبة وحذف أي سجل مرسوم لأي مستخدم مسجل في السيرفر.
                 </div>
                 <div class="card-title" style="color: #f59e0b;">سجلات ورسومات كافة المستخدمين:</div>
                 <div id="adminGlobalRecordsList" style="display:flex; flex-direction:column; gap:6px; overflow-y:auto; max-height:400px;"></div>
@@ -195,23 +196,19 @@
     </div>
 
     <script>
+        // --- Supabase Configuration ---
+        // استبدل هذه القيم بقيم مشروعك من إعدادات Supabase
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
         const WORKSPACE_SYMBOLS = {
             mathFuncs: ["sin(x)", "cos(x)", "tan(x)", "sqrt(x)", "abs(x)", "sinh(x)", "cosh(x)", "tanh(x)", "log(x)", "ln(x)", "^2", "^3", "^", "(", ")"],
             calculus: ["∫", "∬", "∂", "∇", "∑", "∞", "π", "e", "±", "×", "÷", "≠", "≤", "≥"]
         };
 
-        // معلومات المدير العام الثابتة المحددة من قبلك
-        const ADMIN_CREDENTIALS = {
-            email: "sj4380004@gmail.com",
-            password: "Eng.Jehad0595194601"
-        };
-
-        let db = null;
         let currentUser = null; 
         let isAdminMode = false;
-        const DB_NAME = "MathVerseUserSystemDB";
-        const STORE_NAME = "user_sessions_history";
-
         let currentLang = "en";
         let isDark = true;
         let view = { xMin: -10, xMax: 10, yMin: -6, yMax: 6 };
@@ -233,270 +230,220 @@
             }
         };
 
-        function initDatabase() {
-            const request = indexedDB.open(DB_NAME, 1);
-            request.onupgradeneeded = (e) => {
-                e.target.result.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
-            };
-            request.onsuccess = (e) => {
-                db = e.target.result;
-                checkSession();
-            };
+        // --- Auth Functions ---
+        async function checkSession() {
+            const { data: { session } } = await supabase.auth.getSession();
+            if (session) {
+                currentUser = session.user;
+                await updateUIForUser();
+                document.getElementById("authOverlay").style.display = "none";
+            }
         }
 
-        // معالجة تسجيل الدخول والتحقق من صلاحيات المدير العام
-        function handleUserLogin() {
-            const nameInput = document.getElementById("authName").value.trim();
-            const emailInput = document.getElementById("authEmail").value.trim().toLowerCase();
-            const passwordInput = document.getElementById("authPassword").value;
+        async function handleAuth(type) {
+            const email = document.getElementById("authEmail").value;
+            const password = document.getElementById("authPassword").value;
+            const fullName = document.getElementById("authName").value;
 
-            if (!emailInput) {
-                alert("يرجى إدخال البريد الإلكتروني على الأقل للدخول.");
-                return;
-            }
-
-            // التحقق مما إذا كان المدخل هو المدير العام الحصري
-            if (emailInput === ADMIN_CREDENTIALS.email) {
-                if (passwordInput !== ADMIN_CREDENTIALS.password) {
-                    alert("⚠️ كلمة مرور المدير العام غير صحيحة!");
-                    return;
+            try {
+                let result;
+                if (type === 'signup') {
+                    result = await supabase.auth.signUp({
+                        email, password,
+                        options: { data: { full_name: fullName } }
+                    });
+                } else {
+                    result = await supabase.auth.signInWithPassword({ email, password });
                 }
-                // تهيئة حساب المدير العام
-                currentUser = { name: "المهندس جهاد (المدير العام)", email: ADMIN_CREDENTIALS.email, role: "admin" };
-                isAdminMode = true;
-            } else {
-                // مستخدم عادي
-                if (!nameInput) {
-                    alert("يرجى كتابة اسمك الكامل لإنشاء سجل خاص بك.");
-                    return;
-                }
-                currentUser = { name: nameInput, email: emailInput, role: "user" };
-                isAdminMode = false;
-            }
 
-            localStorage.setItem("mathverse_logged_session", JSON.stringify(currentUser));
-            applySessionUI();
-        }
-
-        function checkSession() {
-            const saved = localStorage.getItem("mathverse_logged_session");
-            if (saved) {
-                currentUser = JSON.parse(saved);
-                isAdminMode = (currentUser.role === "admin");
-                applySessionUI();
+                if (result.error) throw result.error;
+                
+                currentUser = result.data.user;
+                await updateUIForUser();
+                document.getElementById("authOverlay").style.display = "none";
+                alert(type === 'signup' ? "تم التسجيل بنجاح!" : "تم دخولك بنجاح!");
+            } catch (error) {
+                alert("خطأ: " + error.message);
             }
         }
 
-        function applySessionUI() {
-            if (!currentUser) return;
-            document.getElementById("authOverlay").style.display = "none";
+        async function updateUIForUser() {
+            // التحقق من حالة الأدمن من جدول profiles
+            const { data: profile } = await supabase
+                .from('profiles')
+                .select('is_admin, full_name')
+                .eq('id', currentUser.id)
+                .single();
+
+            const name = profile?.full_name || currentUser.email;
+            isAdminMode = profile?.is_admin || false;
+
+            document.getElementById("userDisplay").innerText = `Sign Out (${name})`;
             
-            const badge = document.getElementById("userDisplay");
             if (isAdminMode) {
-                badge.innerText = `👑 المدير العام: ${currentUser.name} [خروج]`;
-                badge.className = "user-badge admin-badge";
-                document.getElementById("tabAdmin").style.display = "block"; // إظهار لوحة التحكم للمدير العام
-                document.getElementById("mainLogoIcon").innerText = "👑";
-                document.getElementById("mainLogoIcon").className = "logo-icon admin-mode";
-                document.getElementById("txtTitle").className = "logo-title admin-mode";
-                document.getElementById("addGraphBtn").className = "btn btn-accent admin-btn";
-                document.getElementById("saveRecordBtn").className = "btn btn-accent admin-btn";
-                loadAdminGlobalHistory();
-            } else {
-                badge.innerText = `👤 المستخدِم: ${currentUser.name} [خروج]`;
-                badge.className = "user-badge";
-                document.getElementById("tabAdmin").style.display = "none";
+                document.getElementById("tabAdmin").style.display = "block";
+                document.getElementById("mainLogoIcon").classList.add("admin-mode");
+                document.getElementById("txtTitle").classList.add("admin-mode");
             }
-            loadUserHistoryFromDB();
         }
 
-        function logout() {
-            localStorage.removeItem("mathverse_logged_session");
+        async function logout() {
+            await supabase.auth.signOut();
             location.reload();
         }
 
-        function saveGraphToUserHistory() {
-            if (!db || !currentUser) return;
-            const titleEl = document.getElementById("dbSaveName");
-            const title = titleEl.value.trim();
-            if (!title) return;
+        // --- Database Functions ---
+        async function saveGraphToSupabase() {
+            const title = document.getElementById("dbSaveName").value.trim() || "Untitled Graph";
+            const { error } = await supabase
+                .from('user_graphs')
+                .insert([{ 
+                    user_id: currentUser.id, 
+                    title: title, 
+                    graph_data: graphs 
+                }]);
 
-            const transaction = db.transaction([STORE_NAME], "readwrite");
-            const store = transaction.objectStore(STORE_NAME);
-
-            const record = {
-                userEmail: currentUser.email,
-                userName: currentUser.name,
-                title: title,
-                graphData: graphs,
-                timestamp: new Date().toLocaleString()
-            };
-
-            store.add(record);
-            transaction.oncomplete = () => {
-                titleEl.value = "";
-                loadUserHistoryFromDB();
-                if (isAdminMode) loadAdminGlobalHistory();
-            };
+            if (error) alert("Error saving: " + error.message);
+            else {
+                alert("Saved successfully!");
+                loadUserHistory();
+            }
         }
 
-        // عرض سجلات الحساب المفتوح حالياً
-        function loadUserHistoryFromDB() {
-            if (!db || !currentUser) return;
-            const list = document.getElementById("dbRecordsList");
+        async function loadUserHistory() {
+            const { data, error } = await supabase
+                .from('user_graphs')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (error) return;
+            renderHistoryList("dbRecordsList", data, false);
+        }
+
+        async function loadAdminGlobalHistory() {
+            if (!isAdminMode) return;
+            const { data, error } = await supabase
+                .from('user_graphs')
+                .select('*, profiles(full_name)')
+                .order('created_at', { ascending: false });
+
+            if (error) return;
+            renderHistoryList("adminGlobalRecordsList", data, true);
+        }
+
+        function renderHistoryList(elementId, records, showUser) {
+            const list = document.getElementById(elementId);
             list.innerHTML = "";
-
-            db.transaction([STORE_NAME], "readonly").objectStore(STORE_NAME).getAll().onsuccess = (e) => {
-                const userRecords = e.target.result.filter(r => r.userEmail === currentUser.email);
-                if (userRecords.length === 0) {
-                    list.innerHTML = `<div style="font-size:12px; opacity:0.5; text-align:center; padding:10px;">لا يوجد سجلات محفوظة لحسابك حالياً.</div>`;
-                    return;
-                }
-                userRecords.forEach(rec => {
-                    list.innerHTML += `
-                        <div class="panel-card" style="display:flex; justify-content:space-between; align-items:center; background:rgba(128,128,128,0.04); padding:10px; margin-bottom:4px;">
+            records.forEach(rec => {
+                const date = new Date(rec.created_at).toLocaleDateString();
+                const userTag = showUser ? `<div style="font-size:10px; color:var(--admin-color)">User: ${rec.profiles?.full_name || 'Unknown'}</div>` : "";
+                list.innerHTML += `
+                    <div class="panel-card" style="margin-bottom:5px; cursor:pointer;" onclick="restoreGraph('${rec.id}')">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
                             <div>
-                                <strong style="color:var(--primary); font-size:13px;">${rec.title}</strong>
-                                <div style="font-size:10px; opacity:0.5;">${rec.timestamp}</div>
+                                <div style="font-size:13px; font-weight:bold;">${rec.title}</div>
+                                <div style="font-size:10px; opacity:0.6;">${date}</div>
+                                ${userTag}
                             </div>
-                            <div style="display:flex; gap:4px;">
-                                <button class="btn" style="padding:4px 8px; font-size:11px;" onclick="restoreSession('${encodeURIComponent(JSON.stringify(rec.graphData))}')">Load</button>
-                                <button class="btn" style="padding:4px 8px; font-size:11px; color:#ef4444;" onclick="deleteSession(${rec.id}, 'user')">✕</button>
-                            </div>
+                            <button class="btn" onclick="deleteRecord(event, '${rec.id}', '${elementId}')" style="color:#ef4444; border:none;">✕</button>
                         </div>
-                    `;
-                });
-            };
-        }
-
-        // لوحة المدير العام: جلب وسحب جميع مدخلات ورسومات قاعدة البيانات بالكامل
-        function loadAdminGlobalHistory() {
-            if (!db || !isAdminMode) return;
-            const adminList = document.getElementById("adminGlobalRecordsList");
-            adminList.innerHTML = "";
-
-            db.transaction([STORE_NAME], "readonly").objectStore(STORE_NAME).getAll().onsuccess = (e) => {
-                const globalRecords = e.target.result;
-                if (globalRecords.length === 0) {
-                    adminList.innerHTML = `<div style="font-size:12px; opacity:0.5; text-align:center; padding:10px; color:#64748b;">قاعدة البيانات فارغة تماماً.</div>`;
-                    return;
-                }
-                globalRecords.forEach(rec => {
-                    adminList.innerHTML += `
-                        <div class="panel-card" style="border: 1px solid rgba(217, 119, 6, 0.2); background: rgba(217, 119, 6, 0.02); display:flex; flex-direction:column; gap:6px; padding:10px; margin-bottom:6px;">
-                            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-                                <div>
-                                    <span style="font-size:11px; font-weight:bold; color:#f59e0b; display:block;">المستخدم: ${rec.userName}</span>
-                                    <span style="font-size:10px; color:#64748b; display:block; font-family:monospace;">(${rec.userEmail})</span>
-                                </div>
-                                <button class="btn" style="padding:2px 6px; font-size:11px; color:#ef4444; border-color:rgba(239,68,68,0.3);" onclick="deleteSession(${rec.id}, 'admin')">حذف من السيرفر</button>
-                            </div>
-                            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.2); padding:6px; border-radius:6px; margin-top:2px;">
-                                <span style="font-size:12px; font-weight:600; color:#cbd5e1;">عنوان الرسمة: ${rec.title}</span>
-                                <button class="btn" style="padding:2px 8px; font-size:11px; background:rgba(255,255,255,0.05);" onclick="restoreSession('${encodeURIComponent(JSON.stringify(rec.graphData))}')">عرض التابع</button>
-                            </div>
-                        </div>
-                    `;
-                });
-            };
-        }
-
-        function deleteSession(id, origin) {
-            db.transaction([STORE_NAME], "readwrite").objectStore(STORE_NAME).delete(id).onsuccess = () => {
-                loadUserHistoryFromDB();
-                if (isAdminMode) loadAdminGlobalHistory();
-            };
-        }
-
-        function restoreSession(encodedData) {
-            graphs = JSON.parse(decodeURIComponent(encodedData));
-            renderGraphsList();
-            draw();
-            switchTab('graph');
-        }
-
-        // ── بناء واجهة أزرار الرموز المدمجة ──
-        function initKeyboard() {
-            Object.entries(WORKSPACE_SYMBOLS).forEach(([category, symbols]) => {
-                const target = document.getElementById("sym" + category.charAt(0).toUpperCase() + category.slice(1));
-                target.innerHTML = "";
-                symbols.forEach(sym => {
-                    target.innerHTML += `<button class="key-btn" onclick="insertSymbol('${sym}')">${sym}</button>`;
-                });
+                    </div>
+                `;
             });
         }
 
-        function insertSymbol(symbol) {
-            const input = document.getElementById("graphInput");
-            const start = input.selectionStart;
-            const end = input.selectionEnd;
-            input.value = input.value.substring(0, start) + symbol + input.value.substring(end, input.value.length);
-            input.focus();
-            input.selectionStart = input.selectionEnd = start + symbol.length;
+        async function restoreGraph(id) {
+            const { data, error } = await supabase.from('user_graphs').select('graph_data').eq('id', id).single();
+            if (data) {
+                graphs = data.graph_data;
+                renderGraphsList();
+                draw();
+                switchTab('graph');
+            }
         }
 
-        function parseMathExpression(expr, x) {
-            try {
-                let clean = expr.toLowerCase().replace(/\^/g, "**")
-                    .replace(/sin/g, "Math.sin").replace(/cos/g, "Math.cos").replace(/tan/g, "Math.tan")
-                    .replace(/sqrt/g, "Math.sqrt").replace(/abs/g, "Math.abs")
-                    .replace(/sinh/g, "Math.sinh").replace(/cosh/g, "Math.cosh").replace(/tanh/g, "Math.tanh")
-                    .replace(/log/g, "Math.log10").replace(/ln/g, "Math.log").replace(/pi/g, "Math.PI").replace(/e/g, "Math.E");
-                clean = clean.replace(/(\d+)(x)/g, "$1*$2");
-                return new Function("x", `"use strict"; return (${clean});`)(x);
-            } catch { return NaN; }
+        async function deleteRecord(event, id, listId) {
+            event.stopPropagation();
+            if (!confirm("Are you sure?")) return;
+            await supabase.from('user_graphs').delete().eq('id', id);
+            if (listId === "dbRecordsList") loadUserHistory();
+            else loadAdminGlobalHistory();
         }
 
-        // ── محرك الرسم البياني للكانفاس ──
+        // --- Canvas & Drawing Logic ---
         const canvas = document.getElementById("graphCanvas");
         const ctx = canvas.getContext("2d");
+        let dragging = false, lastMouse = { x: 0, y: 0 };
 
         function resizeCanvas() {
-            canvas.width = canvas.parentElement.clientWidth;
-            canvas.height = canvas.parentElement.clientHeight;
+            canvas.width = canvas.clientWidth;
+            canvas.height = canvas.clientHeight;
             draw();
         }
 
         function draw() {
-            const W = canvas.width, H = canvas.height;
-            const { xMin, xMax, yMin, yMax } = view;
-            const toScreenX = x => ((x - xMin) / (xMax - xMin)) * W;
-            const toScreenY = y => H - ((y - yMin) / (yMax - yMin)) * H;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawGrid();
+            graphs.filter(g => g.visible).forEach(g => drawFunction(g));
+            updateCoords();
+        }
 
-            ctx.fillStyle = isDark ? "#090d16" : "#f8fafc";
-            ctx.fillRect(0, 0, W, H);
+        function drawGrid() {
+            ctx.strokeStyle = isDark ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.1)";
+            ctx.lineWidth = 1;
+            // Simplified grid for brevity
+            ctx.beginPath();
+            const x0 = mapX(0), y0 = mapY(0);
+            ctx.moveTo(0, y0); ctx.lineTo(canvas.width, y0);
+            ctx.moveTo(x0, 0); ctx.lineTo(x0, canvas.height);
+            ctx.stroke();
+        }
 
-            ctx.strokeStyle = isDark ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.05)";
-            for (let x = Math.ceil(xMin); x <= xMax; x++) { ctx.beginPath(); ctx.moveTo(toScreenX(x), 0); ctx.lineTo(toScreenX(x), H); ctx.stroke(); }
-            for (let y = Math.ceil(yMin); y <= yMax; y++) { ctx.beginPath(); ctx.moveTo(0, toScreenY(y)); ctx.lineTo(W, toScreenY(y)); ctx.stroke(); }
+        function mapX(x) { return (x - view.xMin) / (view.xMax - view.xMin) * canvas.width; }
+        function mapY(y) { return canvas.height - (y - view.yMin) / (view.yMax - view.yMin) * canvas.height; }
+        function revX(px) { return view.xMin + (px / canvas.width) * (view.xMax - view.xMin); }
 
-            const cx = toScreenX(0), cy = toScreenY(0);
-            ctx.strokeStyle = isDark ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.25)";
-            if (cx >= 0 && cx <= W) { ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke(); }
-            if (cy >= 0 && cy <= H) { ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(W, cy); ctx.stroke(); }
+        function drawFunction(g) {
+            ctx.strokeStyle = g.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            let first = true;
+            for (let px = 0; px <= canvas.width; px += 2) {
+                const x = revX(px);
+                try {
+                    // Simple parser replacement for demo
+                    const expr = g.expr.replace(/sin/g, "Math.sin").replace(/cos/g, "Math.cos").replace(/tan/g, "Math.tan").replace(/sqrt/g, "Math.sqrt").replace(/log/g, "Math.log10").replace(/ln/g, "Math.log").replace(/\^/g, "**");
+                    const y = eval(expr.replace(/x/g, `(${x})`));
+                    const py = mapY(y);
+                    if (first) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                    first = false;
+                } catch(e) {}
+            }
+            ctx.stroke();
+        }
 
-            graphs.forEach(g => {
-                if (!g.visible) return;
-                ctx.strokeStyle = g.color;
-                ctx.lineWidth = 2.5;
-                ctx.beginPath();
-                let drawing = false;
-                for (let px = 0; px <= W; px++) {
-                    const xVal = xMin + (px / W) * (xMax - xMin);
-                    const yVal = parseMathExpression(g.expr, xVal);
-                    if (isFinite(yVal) && Math.abs(yVal) < 1000) {
-                        const sy = toScreenY(yVal);
-                        if (!drawing) { ctx.moveTo(px, sy); drawing = true; } else ctx.lineTo(px, sy);
-                    } else drawing = false;
-                }
-                ctx.stroke();
-            });
+        function updateCoords() {
             document.getElementById("coordsIndicator").innerText = `X: [${view.xMin.toFixed(1)}, ${view.xMax.toFixed(1)}] | Y: [${view.yMin.toFixed(1)}, ${view.yMax.toFixed(1)}]`;
         }
 
-        let dragging = false, lastMouse = { x: 0, y: 0, initView: {} };
-        canvas.addEventListener("mousedown", (e) => { dragging = true; lastMouse = { x: e.clientX, y: e.clientY, initView: { ...view } }; });
-        canvas.addEventListener("mousemove", (e) => {
+        // --- UI Interactions ---
+        function initKeyboard() {
+            const container = document.getElementById("symMathFuncs");
+            WORKSPACE_SYMBOLS.mathFuncs.forEach(s => {
+                const b = document.createElement("div"); b.className = "key-btn"; b.innerText = s;
+                b.onclick = () => { document.getElementById("graphInput").value += s; };
+                container.appendChild(b);
+            });
+            const calcContainer = document.getElementById("symCalculus");
+            WORKSPACE_SYMBOLS.calculus.forEach(s => {
+                const b = document.createElement("div"); b.className = "key-btn"; b.innerText = s;
+                b.onclick = () => { document.getElementById("graphInput").value += s; };
+                calcContainer.appendChild(b);
+            });
+        }
+
+        canvas.addEventListener("mousedown", e => { dragging = true; lastMouse = { x: e.clientX, y: e.clientY, initView: { ...view } }; });
+        window.addEventListener("mousemove", e => {
             if (!dragging) return;
             const dx = (e.clientX - lastMouse.x) / canvas.width * (lastMouse.initView.xMax - lastMouse.initView.xMin);
             const dy = (e.clientY - lastMouse.y) / canvas.height * (lastMouse.initView.yMax - lastMouse.initView.yMin);
@@ -519,7 +466,7 @@
             input.value = ""; renderGraphsList(); draw();
         }
 
-        function removeGraph(id) { graphs = graphs.filter(g => g.id !== id); renderGraphsList(); draw(); }
+        function removeGraph(id) { graphs = graphs.filter(g => g.id !== id); renderGraphsList(); draw(); draw(); }
 
         function renderGraphsList() {
             const c = document.getElementById("graphsList"); c.innerHTML = "";
@@ -542,7 +489,7 @@
             if (document.getElementById(btnMap[id])) document.getElementById(btnMap[id]).classList.add('active');
             
             document.getElementById('content' + id.charAt(0).toUpperCase() + id.slice(1)).classList.add('active');
-            if(id === 'db') loadUserHistoryFromDB();
+            if(id === 'db') loadUserHistory();
             if(id === 'admin') loadAdminGlobalHistory();
         }
 
@@ -565,7 +512,7 @@
 
         window.addEventListener("resize", resizeCanvas);
         window.onload = () => {
-            initDatabase();
+            checkSession();
             initKeyboard();
             renderGraphsList();
             resizeCanvas();
